@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bitespeed_task/models"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -71,8 +69,4 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst int
 		return errors.New("body must only contain a single json value")
 	}
 	return nil
-}
-
-func NewModels(db *sql.DB) models.Models {
-	return models.Models{}
 }

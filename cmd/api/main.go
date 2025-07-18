@@ -1,22 +1,16 @@
 package main
 
 import (
-	"bitespeed_task/models"
-	"context"
-	"database/sql"
+	"bitespeed_task/models/store"
 	"flag"
-	"fmt"
 	"log"
 	"os"
-	"time"
-
-	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
 )
+
+const SQLITE_DSN = "./identity_reconciliation.db"
 
 type config struct {
 	port int
-	env  string
 	db   struct {
 		dsn string
 	}
@@ -25,51 +19,45 @@ type config struct {
 type application struct {
 	config config
 	logger *log.Logger
-	models models.Models
+	models *store.Models
 }
 
 func main() {
 	var cfg config
 
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
-	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
-	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("URLSHORTNER_DB_DSN"), "PostgreSQL DSN")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("IDENTITY_RECONCILIATION_DB_DSN"), "PostgreSQL DSN")
 	flag.Parse()
-	fmt.Println("db dsn parsed:", cfg.db.dsn)
 
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
-	db, err := openDB(cfg)
-	if err != nil {
-		logger.Fatal(err)
+	var (
+		m   *store.Models
+		err error
+	)
+
+	if cfg.db.dsn == "" {
+		m, err = store.New("sqlite", cfg.db.dsn)
+		if err != nil {
+			logger.Fatal(err)
+		}
+	} else {
+		m, err = store.New("postgres", cfg.db.dsn)
+		if err != nil {
+			logger.Fatal(err)
+		}
 	}
-	defer db.Close()
-	logger.Printf("database connection pool established")
+
+	defer m.ContactsModel.Close()
 
 	app := &application{
 		config: cfg,
 		logger: logger,
-		models: NewModels(db),
+		models: m,
 	}
 
 	err = app.serve()
 	if err != nil {
 		logger.Fatal(err)
 	}
-}
-
-func openDB(cfg config) (*sql.DB, error) {
-	db, err := sql.Open("postgres", cfg.db.dsn)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err = db.PingContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
 }

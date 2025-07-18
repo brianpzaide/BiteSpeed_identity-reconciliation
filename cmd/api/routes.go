@@ -12,7 +12,7 @@ func routes(app *application) http.Handler {
 	router.NotFound(app.notFoundResponse)
 	router.MethodNotAllowed(app.methodNotAllowedResponse)
 
-	router.Post("/identify", registerUser(app))
+	router.Post("/identify", app.reconciliate)
 
 	return router
 }
