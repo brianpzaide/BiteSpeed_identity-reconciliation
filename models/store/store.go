@@ -3,6 +3,7 @@ package store
 import (
 	"bitespeed_task/models"
 	"bitespeed_task/models/store/postgres"
+	"bitespeed_task/models/store/sqlite"
 )
 
 const SQLITE_DSN = "./identity_reconciliation.db"
@@ -25,7 +26,7 @@ func New(dbType, dsn string) (*Models, error) {
 		}
 		return &Models{ContactsModel: cm}, nil
 	default:
-		cm, err := postgres.NewPostgresModel(dsn)
+		cm, err := sqlite.NewSqliteModel(SQLITE_DSN)
 		if err != nil {
 			return nil, err
 		}

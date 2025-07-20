@@ -26,6 +26,7 @@ func openPostgresDB(dsn string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return db, nil
 }
 
@@ -34,6 +35,12 @@ func NewPostgresModel(dsn string) (ContactsPostgres, error) {
 	if err != nil {
 		return ContactsPostgres{}, err
 	}
+
+	_, err = db.Exec(create_contacts_table)
+	if err != nil {
+		return ContactsPostgres{}, err
+	}
+
 	return ContactsPostgres{db: db}, nil
 }
 
