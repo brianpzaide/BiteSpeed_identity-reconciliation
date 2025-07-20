@@ -12,7 +12,7 @@ const create_contacts_table = `CREATE TABLE IF NOT EXISTS contacts (
 )`
 
 const create_stored_procedure_with_advisory_lock = `CREATE OR REPLACE FUNCTION reconciliate(p_email TEXT, p_phone TEXT)
-	RETURNS contacts AS $$
+	RETURNS SETOF contacts AS $$
 		DECLARE
 		    existing_primary_id INT;
 			existing_email_match INT;

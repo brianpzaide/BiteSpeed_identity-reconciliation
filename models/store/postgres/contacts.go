@@ -36,7 +36,14 @@ func NewPostgresModel(dsn string) (ContactsPostgres, error) {
 		return ContactsPostgres{}, err
 	}
 
+	// create the contacts table
 	_, err = db.Exec(create_contacts_table)
+	if err != nil {
+		return ContactsPostgres{}, err
+	}
+
+	// create the stored procedure for reconciliating the contacts
+	_, err = db.Exec(create_stored_procedure_with_advisory_lock)
 	if err != nil {
 		return ContactsPostgres{}, err
 	}
