@@ -48,11 +48,72 @@ func NewPostgresModel(dsn string) (ContactsPostgres, error) {
 		return ContactsPostgres{}, err
 	}
 
+	// insert test data
+	// _, err = db.Exec(ADD_TEST_DATA)
+	// if err != nil {
+	// 	fmt.Println("error inserting test data")
+	// 	return ContactsPostgres{}, err
+	// }
+
 	return ContactsPostgres{db: db}, nil
 }
 
 func (m ContactsPostgres) Reconciliate(email, phoneNumber string) ([]*models.Contact, error) {
-	return nil, nil
+
+	var (
+		rows *sql.Rows
+		err  error
+	)
+
+	if email == "" || phoneNumber == "" {
+		if email == "" {
+			rows, err = m.db.Query(`SELECT * FROM reconciliate(NULL, $1);`, phoneNumber)
+		} else {
+			rows, err = m.db.Query(`SELECT * FROM reconciliate($1, NULL);`, email)
+		}
+	} else {
+		rows, err = m.db.Query(`SELECT * FROM reconciliate($1, $2);`, email, phoneNumber)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	contacts := make([]*models.Contact, 0)
+	var (
+		linkedId  *int64
+		deletedAt *time.Time
+	)
+
+	for rows.Next() {
+		var contact models.Contact
+		err := rows.Scan(
+			&contact.ID,
+			&contact.PhoneNumber,
+			&contact.Email,
+			&linkedId,
+			&contact.LinkPrecedence,
+			&contact.CreatedAt,
+			&contact.UpdatedAt,
+			&deletedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if linkedId != nil {
+			contact.LinkedId = *linkedId
+		}
+		if deletedAt != nil {
+			contact.DeletedAt = *deletedAt
+		}
+		contacts = append(contacts, &contact)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return contacts, nil
 }
 
 func (m ContactsPostgres) Close() {

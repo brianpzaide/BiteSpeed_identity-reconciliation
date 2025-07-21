@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-const SQLITE_DSN = "./identity_reconciliation.db"
+const SQLITE_DSN = "./identity_reconciliation.db?_txlock=immediate"
 
 const IDENTITY_RECONCILIATION_DB_DSN = "host=localhost port=5432 user=postgres password=mysecretpassword dbname=identityreconciliation sslmode=disable timezone=UTC connect_timeout=5"
 

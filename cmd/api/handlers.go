@@ -2,6 +2,7 @@ package main
 
 import (
 	"bitespeed_task/models"
+	"fmt"
 	"net/http"
 )
 
@@ -26,7 +27,7 @@ func (app *application) reconciliate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	contacts, err := app.models.ContactsModel.Reconciliate(input.Email, input.PhoneNumber)
-
+	fmt.Printf("email: %s, phoneNumber: %s\n", input.Email, input.PhoneNumber)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
