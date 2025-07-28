@@ -16,9 +16,11 @@ const create_stored_procedure_with_advisory_lock = `CREATE OR REPLACE FUNCTION r
 		DECLARE
 		    existing_primary_id INT;
 			existing_email_match INT;
-			email_created_at TIMESTAMP;
+			primary_existing_email_match INT;
+			existing_email_created_at TIMESTAMP;
 			existing_phone_number_match INT;
-			phone_number_created_at TIMESTAMP;
+			primary_existing_phone_number_match INT;
+			existing_phone_number_created_at TIMESTAMP;
 		    new_id INT;
 		BEGIN
 	    	PERFORM pg_advisory_xact_lock(
@@ -29,8 +31,7 @@ const create_stored_procedure_with_advisory_lock = `CREATE OR REPLACE FUNCTION r
 	    	SELECT id
 	    	INTO existing_primary_id
 	    	FROM contacts
-	    	WHERE (phoneNumber = p_phone OR email = p_email)
-	    	  AND linkPrecedence = 'primary'
+	    	WHERE phoneNumber = p_phone OR email = p_email
 			ORDER BY createdAt
 	    	LIMIT 1;
 
@@ -42,37 +43,82 @@ const create_stored_procedure_with_advisory_lock = `CREATE OR REPLACE FUNCTION r
 	    	        p_phone, p_email, 'primary'
 	    	    );
 	    	ELSE
-				SELECT id, createdAt
-	    		INTO existing_phone_number_match, phone_number_created_at
+				SELECT id, linkedId, createdAt
+	    		INTO existing_phone_number_match, primary_existing_phone_number_match, existing_phone_number_created_at
 	    		FROM contacts
-	    		WHERE phoneNumber = p_phone AND linkPrecedence = 'primary'
+	    		WHERE phoneNumber = p_phone
+				ORDER BY createdAT
 	    		LIMIT 1;
 
-				SELECT id, createdAt
-	    		INTO existing_email_match, email_created_at
+				SELECT id, linkedId, createdAt
+	    		INTO existing_email_match, primary_existing_email_match, existing_email_created_at
 	    		FROM contacts
-	    		WHERE email = p_email AND linkPrecedence = 'primary'
+	    		WHERE email = p_email
+				ORDER BY createdAT
 	    		LIMIT 1;
 				
 				IF existing_email_match IS NULL AND existing_phone_number_match IS NOT NULL THEN
-	        		INSERT INTO contacts (
-	        		    phoneNumber, email, linkedId, linkPrecedence
-	        		)
-	        		VALUES (
-	        		    p_phone, p_email, existing_phone_number_match, 'secondary'
-	        		);
+					IF primary_existing_phone_number_match IS NOT NULL THEN
+	        			INSERT INTO contacts (
+	        			    phoneNumber, email, linkedId, linkPrecedence
+	        			)
+	        			VALUES (
+	        			    p_phone, p_email, primary_existing_phone_number_match, 'secondary'
+	        			);
+					ELSE
+						INSERT INTO contacts (
+	        			    phoneNumber, email, linkedId, linkPrecedence
+	        			)
+	        			VALUES (
+	        			    p_phone, p_email, existing_phone_number_match, 'secondary'
+	        			);
+					END IF;	
 	    		END IF;
 				
 				IF existing_phone_number_match IS NULL AND existing_email_match IS NOT NULL THEN
-	        		INSERT INTO contacts (
-	        		    phoneNumber, email, linkedId, linkPrecedence
-	        		)
-	        		VALUES (
-	        		    p_phone, p_email, existing_email_match, 'secondary'
-	        		);
+					IF primary_existing_email_match IS NOT NULL THEN
+	        			INSERT INTO contacts (
+	        			    phoneNumber, email, linkedId, linkPrecedence
+	        			)
+	        			VALUES (
+	        			    p_phone, p_email, primary_existing_email_match, 'secondary'
+	        			);
+					ELSE
+						INSERT INTO contacts (
+	        			    phoneNumber, email, linkedId, linkPrecedence
+	        			)
+	        			VALUES (
+	        			    p_phone, p_email, existing_email_match, 'secondary'
+	        			);
+					END IF;
 	    		END IF;
 
-				IF (existing_email_match IS NOT NULL) AND (existing_phone_number_match IS NOT NULL) AND (existing_phone_number_match != existing_email_match) THEN
+				IF (existing_email_match IS NOT NULL) AND (existing_phone_number_match IS NOT NULL) THEN
+					IF (primary_existing_email_match IS NOT NULL) AND (primary_existing_phone_number_match IS NOT NULL) AND (primary_existing_phone_number_match != primary_existing_email_match) THEN
+						IF existing_phone_number_created_at < existing_email_created_at THEN
+	        				UPDATE contacts
+							SET linkedId = primary_existing_phone_number_match, linkPrecedence = 'secondary', updatedAt = NOW()
+	        				WHERE id = existing_email_match OR linkedId = existing_email_match;
+						ELSE
+	        				UPDATE contacts
+							SET linkedId = existing_email_match, linkPrecedence = 'secondary', updatedAt = NOW()
+	        				WHERE id = existing_phone_number_match OR linkedId = existing_phone_number_match;		
+						END IF;				
+					END IF;
+
+					IF (primary_existing_email_match IS NULL) AND (primary_existing_phone_number_match IS NOT NULL) AND (primary_existing_phone_number_match != existing_email_match) THEN
+						IF phone_number_created_at < primary_email_created_at THEN
+	        				UPDATE contacts
+							SET linkedId = primary_existing_phone_number_match, linkPrecedence = 'secondary', updatedAt = NOW()
+	        				WHERE id = existing_email_match OR linkedId = existing_email_match;
+						ELSE
+	        				UPDATE contacts
+							SET linkedId = existing_email_match, linkPrecedence = 'secondary', updatedAt = NOW()
+	        				WHERE id = existing_phone_number_match OR linkedId = existing_phone_number_match;		
+						END IF;				
+					END IF;
+					
+					
 					IF phone_number_created_at < email_created_at THEN
 	        			UPDATE contacts
 						SET linkedId = existing_phone_number_match, linkPrecedence = 'secondary', updatedAt = NOW()
@@ -96,6 +142,6 @@ const create_stored_procedure_with_advisory_lock = `CREATE OR REPLACE FUNCTION r
 
 const ADD_TEST_DATA = `INSERT INTO contacts (phoneNumber, email, linkedId, linkPrecedence) 
 	VALUES 
-	('email1', 'phone1', NULL, 'primary'),
-	('email2','phone2',NULL,'primary');
+	('phone1', 'email1', NULL, 'primary'),
+	('phone2', 'email2', NULL,'primary');
 `

@@ -10,26 +10,26 @@ const SQLITE_DSN = "./identity_reconciliation.db"
 
 type ContactModelInterface interface {
 	Reconciliate(email, phoneNumber string) ([]*models.Contact, error)
+}
+
+type Models interface {
+	ContactModelInterface
 	Close()
 }
 
-type Models struct {
-	ContactsModel ContactModelInterface
-}
-
-func New(dbType, dsn string) (*Models, error) {
+func New(dbType, dsn string) (Models, error) {
 	switch dbType {
 	case "postgres":
 		cm, err := postgres.NewPostgresModel(dsn)
 		if err != nil {
 			return nil, err
 		}
-		return &Models{ContactsModel: cm}, nil
+		return cm, nil
 	default:
 		cm, err := sqlite.NewSqliteModel(SQLITE_DSN)
 		if err != nil {
 			return nil, err
 		}
-		return &Models{ContactsModel: cm}, nil
+		return cm, nil
 	}
 }

@@ -30,22 +30,22 @@ func openPostgresDB(dsn string) (*sql.DB, error) {
 	return db, nil
 }
 
-func NewPostgresModel(dsn string) (ContactsPostgres, error) {
+func NewPostgresModel(dsn string) (*ContactsPostgres, error) {
 	db, err := openPostgresDB(dsn)
 	if err != nil {
-		return ContactsPostgres{}, err
+		return nil, err
 	}
 
 	// create the contacts table
 	_, err = db.Exec(create_contacts_table)
 	if err != nil {
-		return ContactsPostgres{}, err
+		return nil, err
 	}
 
 	// create the stored procedure for reconciliating the contacts
 	_, err = db.Exec(create_stored_procedure_with_advisory_lock)
 	if err != nil {
-		return ContactsPostgres{}, err
+		return nil, err
 	}
 
 	// insert test data
@@ -55,10 +55,10 @@ func NewPostgresModel(dsn string) (ContactsPostgres, error) {
 	// 	return ContactsPostgres{}, err
 	// }
 
-	return ContactsPostgres{db: db}, nil
+	return &ContactsPostgres{db: db}, nil
 }
 
-func (m ContactsPostgres) Reconciliate(email, phoneNumber string) ([]*models.Contact, error) {
+func (m *ContactsPostgres) Reconciliate(email, phoneNumber string) ([]*models.Contact, error) {
 
 	var (
 		rows *sql.Rows
@@ -116,6 +116,6 @@ func (m ContactsPostgres) Reconciliate(email, phoneNumber string) ([]*models.Con
 	return contacts, nil
 }
 
-func (m ContactsPostgres) Close() {
+func (m *ContactsPostgres) Close() {
 	m.db.Close()
 }

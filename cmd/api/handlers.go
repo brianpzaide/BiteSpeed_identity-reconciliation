@@ -26,7 +26,7 @@ func (app *application) reconciliate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contacts, err := app.models.ContactsModel.Reconciliate(input.Email, input.PhoneNumber)
+	contacts, err := app.models.Reconciliate(input.Email, input.PhoneNumber)
 	fmt.Printf("email: %s, phoneNumber: %s\n", input.Email, input.PhoneNumber)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)

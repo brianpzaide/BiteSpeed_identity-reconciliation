@@ -22,7 +22,7 @@ type config struct {
 type application struct {
 	config config
 	logger *log.Logger
-	models *store.Models
+	models store.Models
 }
 
 func main() {
@@ -35,7 +35,7 @@ func main() {
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
 	var (
-		m   *store.Models
+		m   store.Models
 		err error
 	)
 
@@ -52,7 +52,7 @@ func main() {
 		}
 	}
 
-	defer m.ContactsModel.Close()
+	defer m.Close()
 
 	app := &application{
 		config: cfg,
