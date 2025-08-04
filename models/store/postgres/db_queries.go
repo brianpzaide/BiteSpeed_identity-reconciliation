@@ -11,137 +11,120 @@ const create_contacts_table = `CREATE TABLE IF NOT EXISTS contacts (
     deletedAt TIMESTAMP
 )`
 
-const create_stored_procedure_with_advisory_lock = `CREATE OR REPLACE FUNCTION reconciliate(p_email TEXT, p_phone TEXT)
-	RETURNS SETOF contacts AS $$
-		DECLARE
-		    existing_primary_id INT;
-			existing_email_match INT;
-			primary_existing_email_match INT;
-			existing_email_created_at TIMESTAMP;
-			existing_phone_number_match INT;
-			primary_existing_phone_number_match INT;
-			existing_phone_number_created_at TIMESTAMP;
-		    new_id INT;
-		BEGIN
-	    	PERFORM pg_advisory_xact_lock(
-	    	    COALESCE(hashtext(p_email), 0), 
-				COALESCE(hashtext(p_phone), 0)
-	    	);
+const create_stored_procedure_with_advisory_lock = `CREATE OR REPLACE FUNCTION reconcile_contact(p_email TEXT, p_phone TEXT)
+RETURNS TABLE (
+    id INTEGER,
+    email TEXT,
+    phoneNumber TEXT,
+    linkedId INTEGER,
+    linkPrecedence TEXT,
+    createdAt TIMESTAMP,
+    updatedAt TIMESTAMP,
+	deletedAt TIMESTAMP
+)
+LANGUAGE plpgsql AS
+$$
+DECLARE
+    email_id INTEGER;
+    phone_id INTEGER;
+    email_primary_id INTEGER;
+    phone_primary_id INTEGER;
+    chosen_primary_id INTEGER;
+BEGIN
+    SELECT contacts.id, COALESCE(contacts.linkedId, contacts.id)
+    INTO email_id, email_primary_id
+    FROM contacts
+    WHERE contacts.email = p_email
+    ORDER BY contacts.createdAt
+    LIMIT 1;
 
-	    	SELECT id
-	    	INTO existing_primary_id
-	    	FROM contacts
-	    	WHERE phoneNumber = p_phone OR email = p_email
-			ORDER BY createdAt
-	    	LIMIT 1;
+    SELECT contacts.id, COALESCE(contacts.linkedId, contacts.id)
+    INTO phone_id, phone_primary_id
+    FROM contacts
+    WHERE contacts.phoneNumber = p_phone
+    ORDER BY contacts.createdAt
+    LIMIT 1;
 
-	    	IF existing_primary_id IS NULL THEN
-	    	    INSERT INTO contacts (
-	    	        phoneNumber, email, linkPrecedence
-	    	    )
-	    	    VALUES (
-	    	        p_phone, p_email, 'primary'
-	    	    );
-	    	ELSE
-				SELECT id, linkedId, createdAt
-	    		INTO existing_phone_number_match, primary_existing_phone_number_match, existing_phone_number_created_at
-	    		FROM contacts
-	    		WHERE phoneNumber = p_phone
-				ORDER BY createdAT
-	    		LIMIT 1;
+    IF email_primary_id IS NULL AND phone_primary_id IS NULL THEN
+        INSERT INTO contacts (email, phoneNumber, linkPrecedence)
+        VALUES (p_email, p_phone, 'primary');
 
-				SELECT id, linkedId, createdAt
-	    		INTO existing_email_match, primary_existing_email_match, existing_email_created_at
-	    		FROM contacts
-	    		WHERE email = p_email
-				ORDER BY createdAT
-	    		LIMIT 1;
-				
-				IF existing_email_match IS NULL AND existing_phone_number_match IS NOT NULL THEN
-					IF primary_existing_phone_number_match IS NOT NULL THEN
-	        			INSERT INTO contacts (
-	        			    phoneNumber, email, linkedId, linkPrecedence
-	        			)
-	        			VALUES (
-	        			    p_phone, p_email, primary_existing_phone_number_match, 'secondary'
-	        			);
-					ELSE
-						INSERT INTO contacts (
-	        			    phoneNumber, email, linkedId, linkPrecedence
-	        			)
-	        			VALUES (
-	        			    p_phone, p_email, existing_phone_number_match, 'secondary'
-	        			);
-					END IF;	
-	    		END IF;
-				
-				IF existing_phone_number_match IS NULL AND existing_email_match IS NOT NULL THEN
-					IF primary_existing_email_match IS NOT NULL THEN
-	        			INSERT INTO contacts (
-	        			    phoneNumber, email, linkedId, linkPrecedence
-	        			)
-	        			VALUES (
-	        			    p_phone, p_email, primary_existing_email_match, 'secondary'
-	        			);
-					ELSE
-						INSERT INTO contacts (
-	        			    phoneNumber, email, linkedId, linkPrecedence
-	        			)
-	        			VALUES (
-	        			    p_phone, p_email, existing_email_match, 'secondary'
-	        			);
-					END IF;
-	    		END IF;
+        RETURN QUERY
+        SELECT 
+            contacts.id, contacts.email, contacts.phoneNumber, contacts.linkedId,
+            contacts.linkPrecedence, contacts.createdAt, contacts.updatedAt, contacts.deletedAt
+        FROM contacts
+        WHERE contacts.email = p_email AND contacts.phoneNumber = p_phone
+        ORDER BY contacts.createdAt;
+        RETURN;
+    END IF;
 
-				IF (existing_email_match IS NOT NULL) AND (existing_phone_number_match IS NOT NULL) THEN
-					IF (primary_existing_email_match IS NOT NULL) AND (primary_existing_phone_number_match IS NOT NULL) AND (primary_existing_phone_number_match != primary_existing_email_match) THEN
-						IF existing_phone_number_created_at < existing_email_created_at THEN
-	        				UPDATE contacts
-							SET linkedId = primary_existing_phone_number_match, linkPrecedence = 'secondary', updatedAt = NOW()
-	        				WHERE id = existing_email_match OR linkedId = existing_email_match;
-						ELSE
-	        				UPDATE contacts
-							SET linkedId = existing_email_match, linkPrecedence = 'secondary', updatedAt = NOW()
-	        				WHERE id = existing_phone_number_match OR linkedId = existing_phone_number_match;		
-						END IF;				
-					END IF;
+    IF email_primary_id IS NOT NULL AND phone_primary_id IS NOT NULL THEN
+        SELECT contacts.id INTO chosen_primary_id
+        FROM contacts
+        WHERE contacts.id IN (email_primary_id, phone_primary_id)
+        ORDER BY contacts.createdAt ASC
+        LIMIT 1;
 
-					IF (primary_existing_email_match IS NULL) AND (primary_existing_phone_number_match IS NOT NULL) AND (primary_existing_phone_number_match != existing_email_match) THEN
-						IF phone_number_created_at < primary_email_created_at THEN
-	        				UPDATE contacts
-							SET linkedId = primary_existing_phone_number_match, linkPrecedence = 'secondary', updatedAt = NOW()
-	        				WHERE id = existing_email_match OR linkedId = existing_email_match;
-						ELSE
-	        				UPDATE contacts
-							SET linkedId = existing_email_match, linkPrecedence = 'secondary', updatedAt = NOW()
-	        				WHERE id = existing_phone_number_match OR linkedId = existing_phone_number_match;		
-						END IF;				
-					END IF;
-					
-					
-					IF phone_number_created_at < email_created_at THEN
-	        			UPDATE contacts
-						SET linkedId = existing_phone_number_match, linkPrecedence = 'secondary', updatedAt = NOW()
-	        			WHERE id = existing_email_match OR linkedId = existing_email_match;
-					ELSE
-	        			UPDATE contacts
-						SET linkedId = existing_email_match, linkPrecedence = 'secondary', updatedAt = NOW()
-	        			WHERE id = existing_phone_number_match OR linkedId = existing_phone_number_match;		
-					END IF;				
-	    		END IF;
-			END IF;
+        UPDATE contacts
+        SET linkedId = chosen_primary_id,
+            linkPrecedence = 'secondary',
+            updatedAt = NOW()
+        WHERE contacts.id IN (email_primary_id, phone_primary_id)
+        AND contacts.id != chosen_primary_id;
 
-	    	RETURN QUERY
-			WITH primary_id AS (SELECT id FROM contacts WHERE (email = p_email OR phoneNumber = p_phone) AND linkPrecedence = 'primary')
-    		SELECT * FROM contacts
-    		WHERE id IN (SELECT * FROM primary_id) 
-			OR linkedId IN (SELECT * FROM primary_id)
-			ORDER BY createdAt;
-	END;
-	$$ LANGUAGE plpgsql;`
+        UPDATE contacts
+        SET linkedId = chosen_primary_id,
+            updatedAt = NOW()
+        WHERE contacts.linkedId IN (email_primary_id, phone_primary_id);
 
-const ADD_TEST_DATA = `INSERT INTO contacts (phoneNumber, email, linkedId, linkPrecedence) 
+        RETURN QUERY
+        SELECT 
+            contacts.id, contacts.email, contacts.phoneNumber, contacts.linkedId,
+            contacts.linkPrecedence, contacts.createdAt, contacts.updatedAt, contacts.deletedAt
+        FROM contacts
+        WHERE contacts.id = chosen_primary_id OR contacts.linkedId = chosen_primary_id
+        ORDER BY contacts.createdAt;
+        RETURN;
+    END IF;
+
+    IF email_primary_id IS NOT NULL THEN
+        INSERT INTO contacts (email, phoneNumber, linkedId, linkPrecedence)
+        VALUES (p_email, p_phone, email_primary_id, 'secondary');
+
+        RETURN QUERY
+        SELECT 
+            contacts.id, contacts.email, contacts.phoneNumber, contacts.linkedId,
+            contacts.linkPrecedence, contacts.createdAt, contacts.updatedAt, contacts.deletedAt
+        FROM contacts
+        WHERE contacts.id = email_primary_id OR contacts.linkedId = email_primary_id
+        ORDER BY contacts.createdAt;
+        RETURN;
+    END IF;
+
+    IF phone_primary_id IS NOT NULL THEN
+        INSERT INTO contacts (email, phoneNumber, linkedId, linkPrecedence)
+        VALUES (p_email, p_phone, phone_primary_id, 'secondary');
+
+        RETURN QUERY
+        SELECT 
+            contacts.id, contacts.email, contacts.phoneNumber, contacts.linkedId,
+            contacts.linkPrecedence, contacts.createdAt, contacts.updatedAt, contacts.deletedAt
+        FROM contacts
+        WHERE contacts.id = phone_primary_id OR contacts.linkedId = phone_primary_id
+        ORDER BY contacts.createdAt;
+        RETURN;
+    END IF;
+
+    RETURN;
+END;
+$$;`
+
+const ADD_TEST_DATA = `INSERT INTO contacts (id, email, phoneNumber, linkedId, linkPrecedence) 
 	VALUES 
-	('phone1', 'email1', NULL, 'primary'),
-	('phone2', 'email2', NULL,'primary');
+	(1, 'email1', 'phone1', NULL, 'primary'),
+	(2, 'email2', 'phone2', NULL,'primary'),
+	(3, 'email3', 'phone2', 2, 'secondary'),
+	(4, 'email2', 'phone4', 2,'secondary'),
+	(5, 'email5', 'phone1', 1, 'secondary');
 `

@@ -45,6 +45,8 @@ func generateresponse(contacts []*models.Contact) *ReconciliationResponse {
 
 	var primaryContactId int64 = 0
 	secondaryContactIds := make([]int64, 0)
+	emailsMap := make(map[string]bool)
+	phonesMap := make(map[string]bool)
 	emails := make([]string, 0)
 	phoneNumbers := make([]string, 0)
 
@@ -54,8 +56,15 @@ func generateresponse(contacts []*models.Contact) *ReconciliationResponse {
 		} else {
 			secondaryContactIds = append(secondaryContactIds, contact.ID)
 		}
-		emails = append(emails, contact.Email)
-		phoneNumbers = append(phoneNumbers, contact.PhoneNumber)
+		if ok := emailsMap[contact.Email]; !ok {
+			emails = append(emails, contact.Email)
+			emailsMap[contact.Email] = true
+		}
+
+		if ok := phonesMap[contact.PhoneNumber]; !ok {
+			phoneNumbers = append(phoneNumbers, contact.PhoneNumber)
+			phonesMap[contact.PhoneNumber] = true
+		}
 	}
 
 	return &ReconciliationResponse{

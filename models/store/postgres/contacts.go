@@ -4,6 +4,7 @@ import (
 	"bitespeed_task/models"
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -52,7 +53,7 @@ func NewPostgresModel(dsn string) (*ContactsPostgres, error) {
 	// _, err = db.Exec(ADD_TEST_DATA)
 	// if err != nil {
 	// 	fmt.Println("error inserting test data")
-	// 	return ContactsPostgres{}, err
+	// 	return nil, err
 	// }
 
 	return &ContactsPostgres{db: db}, nil
@@ -67,15 +68,16 @@ func (m *ContactsPostgres) Reconciliate(email, phoneNumber string) ([]*models.Co
 
 	if email == "" || phoneNumber == "" {
 		if email == "" {
-			rows, err = m.db.Query(`SELECT * FROM reconciliate(NULL, $1);`, phoneNumber)
+			rows, err = m.db.Query(`SELECT * FROM reconcile_contact(NULL, $1);`, phoneNumber)
 		} else {
-			rows, err = m.db.Query(`SELECT * FROM reconciliate($1, NULL);`, email)
+			rows, err = m.db.Query(`SELECT * FROM reconcile_contact($1, NULL);`, email)
 		}
 	} else {
-		rows, err = m.db.Query(`SELECT * FROM reconciliate($1, $2);`, email, phoneNumber)
+		rows, err = m.db.Query(`SELECT * FROM reconcile_contact($1, $2);`, email, phoneNumber)
 	}
 
 	if err != nil {
+		fmt.Println(err.Error())
 		return nil, err
 	}
 
