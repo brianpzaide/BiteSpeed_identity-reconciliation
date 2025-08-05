@@ -93,8 +93,8 @@ func (m *ContactsPostgres) Reconciliate(email, phoneNumber string) ([]*models.Co
 		var contact models.Contact
 		err := rows.Scan(
 			&contact.ID,
-			&contact.PhoneNumber,
 			&contact.Email,
+			&contact.PhoneNumber,
 			&linkedId,
 			&contact.LinkPrecedence,
 			&contact.CreatedAt,
