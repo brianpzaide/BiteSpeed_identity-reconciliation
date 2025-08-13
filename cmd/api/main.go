@@ -9,7 +9,7 @@ import (
 
 const SQLITE_DSN = "./identity_reconciliation.db?_txlock=immediate"
 
-const IDENTITY_RECONCILIATION_DB_DSN = "host=localhost port=5432 user=postgres password=mysecretpassword dbname=identityreconciliation sslmode=disable timezone=UTC connect_timeout=5"
+const POSTGRES_DSN = "host=localhost port=5432 user=postgres password=mysecretpassword dbname=identityreconciliation sslmode=disable timezone=UTC connect_timeout=5"
 
 type config struct {
 	port int
@@ -28,7 +28,7 @@ func main() {
 	var cfg config
 
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
-	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", POSTGRES_DSN, "PostgreSQL DSN")
 	flag.Parse()
 
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
