@@ -3,7 +3,6 @@ package main
 import (
 	"bitespeed_task/models/store"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 )
@@ -29,7 +28,7 @@ func main() {
 	var cfg config
 
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
-	flag.StringVar(&cfg.db.dsn, "db-dsn", IDENTITY_RECONCILIATION_DB_DSN, "PostgreSQL DSN")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")
 	flag.Parse()
 
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
@@ -40,12 +39,11 @@ func main() {
 	)
 
 	if cfg.db.dsn == "" {
-		m, err = store.New("sqlite", cfg.db.dsn)
+		m, err = store.New("sqlite", SQLITE_DSN)
 		if err != nil {
 			logger.Fatal(err)
 		}
 	} else {
-		fmt.Println(cfg.db.dsn)
 		m, err = store.New("postgres", cfg.db.dsn)
 		if err != nil {
 			logger.Fatal(err)

@@ -6,9 +6,9 @@ const create_contacts_table = `CREATE TABLE IF NOT EXISTS contacts (
     email TEXT,
     linkedId INTEGER REFERENCES contacts(id),
     linkPrecedence TEXT CHECK (linkPrecedence IN ('primary', 'secondary')),
-    createdAt INTEGER NOT NULL,
-    updatedAt INTEGER NOT NULL,
-    deletedAt INTEGER
+    createdAt TEXT DEFAULT current_timestamp,
+    updatedAt TEXT DEFAULT current_timestamp,
+    deletedAt TEXT
 )`
 
 const (

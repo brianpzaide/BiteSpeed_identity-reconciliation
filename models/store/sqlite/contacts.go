@@ -3,6 +3,7 @@ package sqlite
 import (
 	"bitespeed_task/models"
 	"database/sql"
+	"fmt"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -100,14 +101,20 @@ func reconciliateWithEmailAndPhone(tx *sql.Tx, email, phone string) (*sql.Rows, 
 		&email_id, &email_primary_id,
 	)
 	if err != nil {
-		return nil, err
+		if err.Error() != "sql: no rows in result set" {
+			fmt.Println("line 104")
+			return nil, err
+		}
 	}
 
 	err = tx.QueryRow(fetch_phone_id_and_phone_primary_id, phone).Scan(
 		&phone_id, &phone_primary_id,
 	)
 	if err != nil {
-		return nil, err
+		if err.Error() != "sql: no rows in result set" {
+			fmt.Println("line 104")
+			return nil, err
+		}
 	}
 
 	switch {
@@ -115,6 +122,7 @@ func reconciliateWithEmailAndPhone(tx *sql.Tx, email, phone string) (*sql.Rows, 
 	case email_primary_id == 0 && phone_primary_id == 0:
 		_, err = tx.Exec(insert_when_email_primary_and_phone_primary_not_exist, email, phone)
 		if err != nil {
+			fmt.Println("line 125")
 			return nil, err
 		}
 		rows, err = tx.Query(fetch_reconciliated_records_given_email_and_phone, email, phone)
@@ -124,18 +132,22 @@ func reconciliateWithEmailAndPhone(tx *sql.Tx, email, phone string) (*sql.Rows, 
 	case email_primary_id != 0 && phone_primary_id != 0:
 		err = tx.QueryRow(fetch_chosen_primary_id, email_primary_id, phone_primary_id).Scan(&chosen_primary_id)
 		if err != nil {
+			fmt.Println("line 135")
 			return nil, err
 		}
 		_, err = tx.Exec(update_demote_email_primary_or_phone_primary_to_secondary, chosen_primary_id, email_primary_id, phone_primary_id, chosen_primary_id)
 		if err != nil {
+			fmt.Println("line 140")
 			return nil, err
 		}
 		_, err = tx.Exec(update_linkedId_for_all_followers_of_not_the_chosen_one, chosen_primary_id, email_primary_id, phone_primary_id)
 		if err != nil {
+			fmt.Println("line 145")
 			return nil, err
 		}
-		rows, err = tx.Query(fetch_reconciliated_records_given_id, chosen_primary_id)
+		rows, err = tx.Query(fetch_reconciliated_records_given_id, chosen_primary_id, chosen_primary_id)
 		if err != nil {
+			fmt.Println("line 150")
 			return nil, err
 		}
 	case email_primary_id != 0 && phone_primary_id == 0:
@@ -201,8 +213,9 @@ func (m *ContactsSqlite) Reconciliate(email, phone string) ([]*models.Contact, e
 
 	contacts := make([]*models.Contact, 0)
 	var (
-		linkedId  *int64
-		deletedAt *time.Time
+		linkedId                   *int64
+		createdAtStr, updatedAtStr string
+		deletedAtStr               sql.NullString
 	)
 
 	for rows.Next() {
@@ -213,9 +226,9 @@ func (m *ContactsSqlite) Reconciliate(email, phone string) ([]*models.Contact, e
 			&contact.Email,
 			&linkedId,
 			&contact.LinkPrecedence,
-			&contact.CreatedAt,
-			&contact.UpdatedAt,
-			&deletedAt,
+			&createdAtStr,
+			&updatedAtStr,
+			&deletedAtStr,
 		)
 		if err != nil {
 			return nil, err
@@ -223,8 +236,14 @@ func (m *ContactsSqlite) Reconciliate(email, phone string) ([]*models.Contact, e
 		if linkedId != nil {
 			contact.LinkedId = *linkedId
 		}
-		if deletedAt != nil {
-			contact.DeletedAt = *deletedAt
+		if createdAtStr != "" {
+			contact.CreatedAt, _ = time.Parse("2025-08-13 10:01:38", createdAtStr)
+		}
+		if updatedAtStr != "" {
+			contact.UpdatedAt, _ = time.Parse("2025-08-13 10:01:38", updatedAtStr)
+		}
+		if deletedAtStr.Valid {
+			contact.DeletedAt, _ = time.Parse("2025-08-13 10:01:38", deletedAtStr.String)
 		}
 		contacts = append(contacts, &contact)
 	}
