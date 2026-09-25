@@ -1,5 +1,5 @@
 # BiteSpeed_identity-reconciliation
-This repository contains my solution to the [technical task](https://bitespeed.notion.site/Bitespeed-Backend-Task-Identity-Reconciliation-1fb21bb2a930802eb896d4409460375c) for the [Backend Developer - SDE 1](https://bitespeed.notion.site/Backend-Developer-SDE-1-357cd0ddceba497bbf5f4dc88b03522b) position at [BiteSpeed](https://www.bitespeed.co/).
+This repository contains my solution to the [BiteSpeed Backend Technical Assessment Task](https://bitespeed.notion.site/Bitespeed-Backend-Task-Identity-Reconciliation-1fb21bb2a930802eb896d4409460375c) for the [Backend Developer - SDE 1](https://bitespeed.notion.site/Backend-Developer-SDE-1-357cd0ddceba497bbf5f4dc88b03522b) position at [BiteSpeed](https://www.bitespeed.co/).
 
 ## 1. Problem Statement
 
@@ -80,13 +80,19 @@ Matches existing phone number → insert as secondary:
 
 ### Summary:
 
+When a requests(containing an email and/or phone) arrives, we need to consider the following cases:
+* Neither email nor phone exists in the database
+* Only one of (email or phone) exists in the database
+* Both exist, and also match to the same primary(the oldest) record
+* Both exist, but point to different primaries
+
 ```table
 | Case                                         | Action                                              |
 | -------------------------------------------- | --------------------------------------------------- |
 | Neither email nor phone exists               | Insert as `primary`                                 |
 | Only one (email or phone) exists             | Insert as `secondary` linked to the match           |
 | Both exist, and match same primary           | Do nothing                                          |
-| Both exist, but point to different primaries | Link them by demoting the newer primary — no insert |
+| Both exist, but point to different primaries | Link them by demoting the newer primary - no insert |
 ```
 ---
 
@@ -98,7 +104,7 @@ Matches existing phone number → insert as secondary:
 
 * **Database Integrity & Concurrency Handling**
 
-  * **PostgreSQL:** For PostgreSQL the solution uses a stored procedure with advisory locks to prevent race conditions and avoid data corruption during concurrent writes.
+  * **PostgreSQL:** For PostgreSQL the solution uses a stored procedure with **advisory locks** to prevent race conditions and avoid data corruption during concurrent writes.
   * **SQLite3:**  For SQLite3 the solution wraps reconciliation operations in **transactions** to ensure atomicity and consistency.
 
 * **Automatic Reconciliation**
@@ -121,5 +127,4 @@ Matches existing phone number → insert as secondary:
 * **Reconciliation Strategy**
   
   Inorder to ensure **flat structure** and avoid recursive queries for fetching related records all child(secondary) contacts are attached to the root primary contact.
-
-
+  
